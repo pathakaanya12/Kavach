@@ -1,0 +1,24 @@
+KAVACH v8 FINAL, deploy ready package
+Prepared and fully tested on Fri 20 Nov 2026 night for the City Buildathon submission (deadline Sat 21 Nov, 9:00 AM).
+
+WHAT IS INSIDE
+The complete v8 project with both fixes already applied. No file replacement is needed anymore.
+1. Overlay fix in web/app.js: dismissing the BREACHED or PROTECTED overlay no longer reopens it (dismissed flag added, verified live).
+2. Command Center line removed in web/command.css and web/command.html: the overview shield flow no longer draws any line through or behind the Screen, Policy, Redact and Decision icons (removed at Md's request, verified on screenshot). Md then asked for the line to be removed everywhere, so the Playground pipeline line is hidden too (CSS only, the stage icons still light up with their state colours during a run).
+
+REAL TEST RESULTS (all run live, not assumed)
+1. Full test suite: 147 of 147 tests pass.
+2. Demo runs in real (auto) mode: Kavach OFF breached; Kavach ON English and Hinglish both asked for human approval and ended PROTECTED after Block.
+3. Live Gmail test: the app connected to the real inbox in .env over IMAP, fetched the latest 6 real emails and screened every one (5 safe, 1 flagged by the base64 detector: a genuine Google setup email, the detector is strict, this is expected and not a crash).
+4. Gemini: the API key and the model name in .env are valid, Google servers answered the calls. Some calls returned 429 (quota) or 503 (high demand) and a few timed out on a slow network; every time the built in offline rule engine took over and protection continued. The core protection never depends on Gemini.
+5. Red Team: 20 of 20 attacks blocked, 0 missed, 0 false alarms. Trust Score after that: 100 of 100, grade A.
+6. Audit chain verification: OK.
+
+HOW TO DEPLOY (Aanya)
+Needs: gcloud installed and logged in (gcloud auth login) and one Google Cloud project with billing or credits enabled.
+Run from this folder:  ./deploy_cloudrun.sh
+Defaults: region asia-south1 (Mumbai), service name kavach. The script enables the needed APIs, reads .env and sets the values as Cloud Run environment variables, builds with the Dockerfile and deploys. The .env file itself is kept out of the container image by .dockerignore.
+Local run instead:  ./run.sh   (or run.bat on Windows), then open http://127.0.0.1:8000
+
+SECURITY
+This package contains the real .env with the Gemini key, the Gmail app password and a Telegram bot token. Do not upload it to any public link or public repo. Rotate the keys after the event.
