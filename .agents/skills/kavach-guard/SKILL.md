@@ -9,7 +9,7 @@ Kavach is a security layer between an AI agent and its tools. This skill lets an
 Antigravity / Gemini agent use it with three commands.
 
 ## Setup
-- `KAVACH_URL` = the Kavach server (Cloud Run URL, or `http://localhost:8000`)
+- `KAVACH_URL` = the Kavach server (live: `https://kavach-production-cd342adc.up.railway.app`, or local `http://localhost:8080`)
 - `KAVACH_API_KEY` = the key printed by `deploy_cloudrun.sh` (local default: `kavach-secret-key`)
 
 ## Rules you MUST follow
