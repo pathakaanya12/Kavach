@@ -275,6 +275,10 @@ class KavachGuard:
                 "reason": reason,
                 "policy_hits": policy_hits
             })
+            # Publish the incident report NOW, while the run is paused, so the
+            # dashboard's "Why Kavach stepped in" card explains the pending
+            # approval instead of saying nothing is blocked yet.
+            self._make_incident(tool, args, policy_hits, reason)
 
             human_decision = "block"
             if self.approval_handler:

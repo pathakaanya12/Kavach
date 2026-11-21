@@ -66,11 +66,13 @@
     try {
       const p = await api("/api/platform");
       const live = p.gemini === "live";
+      const degraded = p.gemini === "degraded";
+      const geminiLabel = live ? "Gemini live" : degraded ? "Gemini degraded: rules active" : p.gemini === "configured" ? "Gemini configured" : "Gemini: offline rules";
       $("#platformChips").innerHTML =
-        `<span class="chip"><span class="dot ${live ? "on" : ""}"></span>${live ? "Gemini live" : "Gemini: offline rules"}</span>` +
-        `<span class="chip">${icon("i-cloud", "cyan")}${esc(p.deployment === "Google Cloud Run" ? "Google Cloud Run" : "Running locally")}</span>` +
+        `<span class="chip"><span class="dot ${live ? "on" : ""}"></span>${geminiLabel}</span>` +
+        `<span class="chip">${icon("i-cloud", "cyan")}${esc(p.deployment === "Local" ? "Running locally" : p.deployment)}</span>` +
         `<span class="chip">${icon("i-spark", "cyan")}Agent Skill: kavach-guard</span>`;
-      $("#stackLine").textContent = `${live ? "Gemini live" : "Gemini offline"} · ${p.deployment} · Antigravity`;
+      $("#stackLine").textContent = `${geminiLabel} · ${p.deployment} · Antigravity`;
     } catch (e) { /* keep defaults */ }
   }
 

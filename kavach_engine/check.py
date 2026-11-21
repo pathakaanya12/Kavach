@@ -59,13 +59,21 @@ def check_task_with_gemini(
     }
 
     try:
+        from kavach_engine.health import note_gemini
         resp = requests.post(endpoint, json=payload, timeout=timeout_sec)
         if resp.status_code == 200:
+            note_gemini(True)
             data = resp.json()
             raw_text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
             return json.loads(raw_text)
+        note_gemini(False, f"task-check HTTP {resp.status_code}")
         logger.warning(f"Gemini check returned non-200 status {resp.status_code}: {resp.text[:100]}")
     except Exception as e:
+        try:
+            from kavach_engine.health import note_gemini
+            note_gemini(False, f"task-check error: {e}")
+        except Exception:
+            pass
         logger.warning(f"Gemini task-check failed or timed out ({e}); failing closed to deterministic policies.")
 
     return {"decision": "n/a", "reason": "Gemini check offline or timed out"}

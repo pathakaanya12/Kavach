@@ -219,13 +219,21 @@ def screen_with_gemini(text: str) -> Dict[str, Any]:
     }
 
     try:
+        from kavach_engine.health import note_gemini
         resp = requests.post(endpoint, json=payload, timeout=timeout_sec)
         if resp.status_code == 200:
+            note_gemini(True)
             data = resp.json()
             raw_text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
             return json.loads(raw_text)
+        note_gemini(False, f"screening HTTP {resp.status_code}")
         logger.warning(f"Gemini screening returned non-200 status {resp.status_code}: {resp.text[:100]}")
     except Exception as e:
+        try:
+            from kavach_engine.health import note_gemini
+            note_gemini(False, f"screening error: {e}")
+        except Exception:
+            pass
         logger.warning(f"Gemini screening failed or timed out ({e}); falling back to deterministic detectors.")
 
     return {"verdict": "safe", "reason": "Gemini screener offline/timed out (fail-closed fallback)", "signals": []}

@@ -152,6 +152,15 @@ def serve_tailwind_js():
     raise HTTPException(status_code=404, detail="tailwind.js not downloaded yet")
 
 
+@app.get("/favicon.ico")
+def serve_favicon():
+    """Shield favicon so browsers do not log a 404 for /favicon.ico."""
+    fav_path = os.path.join(WEB_DIR, "favicon.svg")
+    if os.path.exists(fav_path):
+        return FileResponse(fav_path, media_type="image/svg+xml")
+    raise HTTPException(status_code=404, detail="favicon not found")
+
+
 @app.get("/app.js")
 def serve_app_js():
     """Serves client JavaScript."""
@@ -629,6 +638,20 @@ def playground(req: PlaygroundRequest):
     hidden = extract_hidden_instruction(req.text or "") if flagged else ""
     chk = check_action(run_id=sid, tool=req.tool, args=req.args or {}, session_id=sid,
                        flagged_sources=["playground:input"] if flagged else [])
+    # Fail closed on tools the policy file does not know: an unlisted tool
+    # must never sail through as "allow" just because no rule mentions it.
+    try:
+        with open(os.path.join(BASE_DIR, "config", "policies.json"), encoding="utf-8") as pf:
+            known_tools = set(json.load(pf).get("tool_risk_tiers", {}).keys())
+    except Exception:
+        known_tools = set()
+    if known_tools and req.tool not in known_tools:
+        hits = list(chk.get("policy_hits") or []) + ["unknown_tool"]
+        chk = dict(chk)
+        chk["policy_hits"] = hits
+        chk["decision"] = "ask"
+        chk["reason"] = (f"Unknown tool '{req.tool}' is not in the policy list. "
+                         "Fail closed: a human must approve before this can run.")
     redacted_args, red_types = redact_value(req.args or {}), []
     try:
         _, red_types = redact_text(json.dumps(req.args or {}))
@@ -661,12 +684,33 @@ def get_policies():
 @app.get("/api/platform")
 def platform_info():
     """Which Google AI / Cloud pieces power this running instance (shown in the dashboard footer)."""
-    deployed = os.getenv("KAVACH_DEPLOYMENT", "") == "google-cloud-run" or bool(os.getenv("K_SERVICE"))
+    if os.getenv("KAVACH_DEPLOYMENT", "") == "google-cloud-run" or os.getenv("K_SERVICE"):
+        deployment = "Google Cloud Run"
+    elif os.getenv("RAILWAY_PROJECT_ID") or os.getenv("RAILWAY_SERVICE_ID") or os.getenv("RAILWAY_ENVIRONMENT"):
+        deployment = "Railway"
+    else:
+        deployment = "Local"
     offline = os.getenv("KAVACH_OFFLINE", "0") == "1" or not os.getenv("GEMINI_API_KEY")
+    gemini_state = "offline rules (no key)"
+    gemini_detail = ""
+    if not offline:
+        try:
+            from kavach_engine.health import gemini_health
+            health = gemini_health()
+            gemini_detail = health.get("detail", "")
+            if health.get("status") == "live":
+                gemini_state = "live"
+            elif health.get("status") == "degraded":
+                gemini_state = "degraded"
+            else:
+                gemini_state = "configured"
+        except Exception:
+            gemini_state = "configured"
     return {
-        "deployment": "Google Cloud Run" if deployed else "Local",
+        "deployment": deployment,
         "region": os.getenv("CLOUD_RUN_REGION", ""),
-        "gemini": "offline rules (no key)" if offline else "live",
+        "gemini": gemini_state,
+        "gemini_detail": gemini_detail,
         "models": {
             "screening": os.getenv("KAVACH_SCREEN_MODEL", ""),
             "task_check": os.getenv("KAVACH_CHECK_MODEL", ""),
@@ -776,6 +820,9 @@ def kill_run():
 @app.post("/api/run")
 def start_run(req: RunRequest, background_tasks: BackgroundTasks):
     """Triggers agent execution run in background."""
+    allowed_variants = {"english", "hinglish", "upi", "multiagent", "quarantine"}
+    if req.variant not in allowed_variants:
+        raise HTTPException(status_code=400, detail=f"Unknown variant '{req.variant}'. Allowed: {', '.join(sorted(allowed_variants))}")
     if state.status == "running" or state.status == "waiting_approval":
         raise HTTPException(status_code=409, detail="A run is currently in progress")
     if state.redteam_status == "running":

@@ -5,7 +5,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-# Bake the dashboard styles into the image so the UI never depends on a CDN at demo time
-RUN python -c "import urllib.request; urllib.request.urlretrieve('https://cdn.tailwindcss.com', 'web/tailwind.js')" || echo "tailwind download skipped"
+# Bake the dashboard styles into the image so the UI never depends on a CDN at demo time.
+# web/tailwind.js is committed in the repo; only fetch it if it is missing or empty.
+RUN if [ ! -s web/tailwind.js ]; then python -c "import urllib.request; urllib.request.urlretrieve('https://cdn.tailwindcss.com/3.4.16', 'web/tailwind.js')" || echo "tailwind download skipped"; fi
 EXPOSE 8080
 CMD exec uvicorn server.main:app --host 0.0.0.0 --port ${PORT}

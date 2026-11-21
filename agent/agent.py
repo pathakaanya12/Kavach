@@ -36,16 +36,25 @@ async def call_gemini_planner(user_task: str, read_emails: List[Dict[str, Any]])
         "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}
     }
 
-    resp = requests.post(endpoint, json=payload, timeout=8.0)
-    if resp.status_code == 200:
-        data = resp.json()
-        raw_text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-        parsed = json.loads(raw_text)
-        if isinstance(parsed, list):
-            return parsed
-        elif isinstance(parsed, dict) and "actions" in parsed:
-            return parsed["actions"]
-    raise RuntimeError(f"Gemini planner returned status {resp.status_code}")
+    import time as _time
+    last_status = None
+    for attempt in range(2):
+        resp = requests.post(endpoint, json=payload, timeout=8.0)
+        last_status = resp.status_code
+        if resp.status_code == 200:
+            data = resp.json()
+            raw_text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            parsed = json.loads(raw_text)
+            if isinstance(parsed, list):
+                return parsed
+            elif isinstance(parsed, dict) and "actions" in parsed:
+                return parsed["actions"]
+            break
+        if resp.status_code in (429, 503) and attempt == 0:
+            _time.sleep(2.5)
+            continue
+        break
+    raise RuntimeError(f"Gemini planner returned status {last_status}")
 
 class DemoAgent:
     def __init__(self, guard: KavachGuard):
@@ -93,6 +102,11 @@ class DemoAgent:
                 self.guard.emit("planner_thinking", "Consulting Gemini model to plan tool calls...")
                 actions = await call_gemini_planner(self.guard.user_task, read_emails)
                 self.active_planner = "gemini"
+                try:
+                    from kavach_engine.health import note_gemini
+                    note_gemini(True)
+                except Exception:
+                    pass
 
                 # If Run 1 (unshielded) and Gemini didn't produce the attack call, fall back to scripted
                 has_attack = any("customer_data" in json.dumps(a) for a in actions)
@@ -101,6 +115,11 @@ class DemoAgent:
                     actions = plan_scripted_actions(self.guard.user_task, read_emails)
                     self.active_planner = "scripted"
             except Exception as e:
+                try:
+                    from kavach_engine.health import note_gemini
+                    note_gemini(False, f"planner: {str(e)[:80]}")
+                except Exception:
+                    pass
                 self.guard.emit("planner_fallback", f"Gemini planner unavailable ({str(e)[:60]}); using scripted planner.")
                 actions = plan_scripted_actions(self.guard.user_task, read_emails)
                 self.active_planner = "scripted"

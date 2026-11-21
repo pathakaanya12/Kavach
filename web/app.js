@@ -842,7 +842,7 @@ if (_egressBtn) _egressBtn.addEventListener("click", async () => {
     const p = await r.json();
     const el = document.getElementById("googleStack");
     if (!el) return;
-    const where = p.deployment === "Google Cloud Run" ? "Running on Google Cloud Run" : "Running locally";
+    const where = p.deployment === "Local" ? "Running locally" : `Running on ${p.deployment}`;
     const gem = p.gemini === "live" ? `Gemini live (${p.models.screening || "Gemini"})` : "Gemini: offline rules";
     el.textContent = `${where} \u00b7 ${gem} \u00b7 Built with Antigravity \u00b7 Agent Skill: kavach-guard`;
   } catch (e) { /* keep static text */ }
