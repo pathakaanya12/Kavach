@@ -37,9 +37,16 @@ async def call_gemini_planner(user_task: str, read_emails: List[Dict[str, Any]])
     }
 
     import time as _time
+    timeout_sec = float(os.getenv("AGENT_PLANNER_TIMEOUT", "30"))
     last_status = None
     for attempt in range(2):
-        resp = requests.post(endpoint, json=payload, timeout=8.0)
+        try:
+            resp = requests.post(endpoint, json=payload, timeout=timeout_sec)
+        except Exception:
+            if attempt == 0:
+                _time.sleep(1.5)
+                continue
+            raise
         last_status = resp.status_code
         if resp.status_code == 200:
             data = resp.json()
